@@ -77,6 +77,20 @@ func (c *Client) GenerateImage(ctx context.Context, req domain.ImageGenerationRe
 		return nil, fmt.Errorf("failed to marshal params: %w", err)
 	}
 
+	paramsPart := make(map[string][]string)
+	paramsPart["Content-Disposition"] = append(paramsPart["Content-Disposition"], "form-data; name=\"params\"")
+	paramsPart["Content-Type"] = append(paramsPart["Content-Type"], "application/json")
+
+	paramsWriter, err := writer.CreatePart(paramsPart)
+	if err != nil {
+		return nil, fmt.Errorf("paramsWriter - writer.CreatePart: %s", err)
+	}
+
+	_, err = paramsWriter.Write(paramsJSON)
+	if err != nil {
+		return nil, fmt.Errorf("paramsWriter- paramsWriter.Write: %s", err)
+	}
+
 	if err := writer.WriteField("params", string(paramsJSON)); err != nil {
 		return nil, fmt.Errorf("failed to write params: %w", err)
 	}
