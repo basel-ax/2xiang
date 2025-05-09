@@ -72,7 +72,11 @@ VALUES ('a beautiful sunset over mountains', 'ReadyToGenerate');
 
 2. Run the application:
 ```bash
+# Basic logging (date and time only)
 go run cmd/example/main.go
+
+# Verbose logging (includes file names and line numbers)
+go run cmd/example/main.go -verbose
 ```
 
 The service will automatically:
@@ -81,6 +85,27 @@ The service will automatically:
 - Monitor the generation progress
 - Save the generated images as base64 data
 - Update the status accordingly
+
+## Logging
+
+The service provides two logging modes:
+
+1. Basic Logging (default):
+   - Shows date and time for each log entry
+   - Example: `2024/03/21 15:04:05 Processing image ID 1 with prompt: a beautiful sunset`
+
+2. Verbose Logging (with `-verbose` flag):
+   - Shows date, time, file name, and line number
+   - Helpful for debugging and development
+   - Example: `2024/03/21 15:04:05 main.go:123: Processing image ID 1 with prompt: a beautiful sunset`
+
+Log messages include:
+- Service startup and shutdown events
+- Database connection status
+- Image generation progress
+- API request status
+- Error conditions with context
+- Workflow state changes
 
 ## Image Status Flow
 
