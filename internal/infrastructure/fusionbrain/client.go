@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/swenro11/2xiang/internal/domain"
+	"github.com/basel-ax/2xiang/internal/domain"
 )
 
 const (

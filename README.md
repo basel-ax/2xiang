@@ -16,7 +16,7 @@ This service provides a clean, idiomatic Go implementation for generating images
 ## Installation
 
 ```bash
-go get github.com/swenro11/2xiang
+go get github.com/basel-ax/2xiang
 ```
 
 ## Configuration
@@ -59,9 +59,9 @@ import (
     "context"
     "time"
     
-    "github.com/swenro11/2xiang/internal/config"
-    "github.com/swenro11/2xiang/internal/domain"
-    "github.com/swenro11/2xiang/internal/service"
+    "github.com/basel-ax/2xiang/internal/config"
+    "github.com/basel-ax/2xiang/internal/domain"
+    "github.com/basel-ax/2xiang/internal/service"
 )
 
 // Load configuration

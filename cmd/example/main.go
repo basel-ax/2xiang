@@ -6,11 +6,11 @@ import (
 	"log"
 	"time"
 
+	"github.com/basel-ax/2xiang/internal/config"
+	"github.com/basel-ax/2xiang/internal/domain"
+	"github.com/basel-ax/2xiang/internal/repository"
+	"github.com/basel-ax/2xiang/internal/service"
 	_ "github.com/lib/pq"
-	"github.com/swenro11/2xiang/internal/config"
-	"github.com/swenro11/2xiang/internal/domain"
-	"github.com/swenro11/2xiang/internal/repository"
-	"github.com/swenro11/2xiang/internal/service"
 )
 
 func main() {

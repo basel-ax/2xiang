@@ -1,4 +1,4 @@
-module github.com/swenro11/2xiang
+module github.com/basel-ax/2xiang
 
 go 1.21
 

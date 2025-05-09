@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/swenro11/2xiang/internal/config"
-	"github.com/swenro11/2xiang/internal/domain"
-	"github.com/swenro11/2xiang/internal/infrastructure/fusionbrain"
+	"github.com/basel-ax/2xiang/internal/config"
+	"github.com/basel-ax/2xiang/internal/domain"
+	"github.com/basel-ax/2xiang/internal/infrastructure/fusionbrain"
 )
 
 // ImageGenerationService implements the domain.ImageGenerationService interface
