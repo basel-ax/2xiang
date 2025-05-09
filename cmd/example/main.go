@@ -11,17 +11,41 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/basel-ax/2xiang/internal/config"
 	"github.com/basel-ax/2xiang/internal/domain"
 	"github.com/basel-ax/2xiang/internal/repository"
 	"github.com/basel-ax/2xiang/internal/service"
 	_ "github.com/lib/pq"
+	"github.com/robfig/cron/v3"
 )
+
+const (
+	maxPromptLength = 999
+)
+
+// truncatePrompt safely truncates a string to the specified length while preserving UTF-8 characters
+func truncatePrompt(s string, length int) string {
+	if utf8.RuneCountInString(s) <= length {
+		return s
+	}
+
+	var size, n int
+	for i := 0; i < length && n < len(s); i++ {
+		_, size = utf8.DecodeRuneInString(s[n:])
+		n += size
+	}
+
+	return s[:n]
+}
 
 func main() {
 	// Parse command line flags
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
+	runGenerator := flag.Bool("generator", false, "Run image generation workflow")
+	runProcessor := flag.Bool("processor", false, "Run image processing workflow")
+	runCron := flag.Bool("cron", false, "Run workflows on schedule (generator every 5min, processor every 10min)")
 	flag.Parse()
 
 	// Configure logging
@@ -30,6 +54,11 @@ func main() {
 		log.Println("Verbose logging enabled")
 	} else {
 		log.SetFlags(log.Ldate | log.Ltime)
+	}
+
+	// Check if at least one workflow is selected
+	if !*runGenerator && !*runProcessor && !*runCron {
+		log.Fatal("Please specify at least one workflow to run: -generator, -processor, or -cron")
 	}
 
 	// Load configuration
@@ -74,14 +103,59 @@ func main() {
 		cancel()
 	}()
 
-	// Start workflows
-	log.Println("Starting image generation workflows...")
-	go generateImagesWorkflow(ctx, imgRepo, imgService, cfg)
-	go processGeneratedImagesWorkflow(ctx, imgRepo, imgService, cfg)
+	// Start selected workflows
+	if *runCron {
+		log.Println("Starting scheduled workflows...")
+		startCronWorkflows(ctx, imgRepo, imgService, cfg)
+	} else {
+		if *runGenerator {
+			log.Println("Starting image generation workflow...")
+			go generateImagesWorkflow(ctx, imgRepo, imgService, cfg)
+		}
+
+		if *runProcessor {
+			log.Println("Starting image processing workflow...")
+			go processGeneratedImagesWorkflow(ctx, imgRepo, imgService, cfg)
+		}
+	}
 
 	// Wait for context cancellation
 	<-ctx.Done()
 	log.Println("Shutting down gracefully...")
+}
+
+func startCronWorkflows(ctx context.Context, repo repository.ImageRepository, service *service.ImageGenerationService, cfg *config.Config) {
+	// Create a new cron scheduler
+	c := cron.New(cron.WithSeconds())
+
+	// Add generator workflow to run every 5 minutes
+	_, err := c.AddFunc("0 */5 * * * *", func() {
+		log.Println("Starting scheduled generator workflow...")
+		generateImagesWorkflow(ctx, repo, service, cfg)
+	})
+	if err != nil {
+		log.Printf("Error scheduling generator workflow: %v", err)
+		return
+	}
+
+	// Add processor workflow to run every 10 minutes
+	_, err = c.AddFunc("0 */10 * * * *", func() {
+		log.Println("Starting scheduled processor workflow...")
+		processGeneratedImagesWorkflow(ctx, repo, service, cfg)
+	})
+	if err != nil {
+		log.Printf("Error scheduling processor workflow: %v", err)
+		return
+	}
+
+	// Start the cron scheduler
+	c.Start()
+	log.Println("Cron scheduler started successfully")
+
+	// Keep the scheduler running until context is cancelled
+	<-ctx.Done()
+	c.Stop()
+	log.Println("Cron scheduler stopped")
 }
 
 func generateImagesWorkflow(ctx context.Context, repo repository.ImageRepository, service *service.ImageGenerationService, cfg *config.Config) {
@@ -102,6 +176,14 @@ func generateImagesWorkflow(ctx context.Context, repo repository.ImageRepository
 			}
 
 			if img != nil {
+				// Truncate prompt if it exceeds the maximum length
+				originalPrompt := img.Prompt
+				img.Prompt = truncatePrompt(img.Prompt, maxPromptLength)
+				if len(originalPrompt) != len(img.Prompt) {
+					log.Printf("Prompt for image ID %d was truncated from %d to %d characters",
+						img.ID, len(originalPrompt), len(img.Prompt))
+				}
+
 				log.Printf("Processing image ID %d with prompt: %s", img.ID, img.Prompt)
 
 				// Create image generation request
