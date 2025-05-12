@@ -1,0 +1,44 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Cursor Rules for Go Microservices Projects
+
+[Project Structure & Modularity]
+- Enforce Clean Architecture: code must be organized into cmd/, internal/, pkg/, api/, configs/, and test/ directories.
+- Separate domain, repository, service, and handler layers.
+- No business logic in handlers/controllers; all business logic must reside in the service/use case layer.
+- Favor interface-driven design: all public functions must interact with interfaces, not concrete types.
+- No global state: use dependency injection for all dependencies.
+
+[Code Quality & Best Practices]
+- Short, focused functions: functions should have a single responsibility and be under 40 lines.
+- Explicit error handling: all errors must be checked and wrapped with context using fmt.Errorf("context: %w", err).
+- No panics in production code; use error returns and proper error propagation.
+- No direct use of fmt.Print* or log.Print* for application logs; use structured logging (e.g., with OpenTelemetry or a logger that supports context and trace correlation).
+
+[Observability & Tracing]
+- All HTTP/gRPC handlers must propagate context.
+- All external calls (DB, API, etc.) must be instrumented with OpenTelemetry spans.
+- All logs must include trace and request IDs.
+- No unstructured logs: all logs must be JSON-formatted and include severity.
+
+[Security & Resilience]
+- All external input must be validated and sanitized.
+- No hardcoded secrets or credentials.
+- All external calls must have timeouts and retries with exponential backoff.
+- No direct use of os.Getenv outside config loading.
+
+[Testing & Documentation]
+- All exported functions must have GoDoc comments.
+- All business logic must have table-driven unit tests.
+- Mocks must be used for all external dependencies in unit tests.
+- Test coverage must be >80% for all packages.
+- No test code in production directories.
+- README, CONTRIBUTING.md, and ARCHITECTURE.md must be kept up to date.
+
+[Tooling & CI]
+- All code must pass go fmt, goimports, and golangci-lint before merging.
+- All dependencies must be managed with Go modules and version-locked.
+- CI must run all tests, linters, and security checks on every PR. 
