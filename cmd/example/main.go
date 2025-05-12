@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"regexp"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unicode/utf8"
@@ -128,10 +129,16 @@ func startCronWorkflows(ctx context.Context, repo repository.ImageRepository, se
 	// Create a new cron scheduler
 	c := cron.New(cron.WithSeconds())
 
+	var cronMutex sync.Mutex
+
 	// Add generator workflow to run every 5 minutes
 	_, err := c.AddFunc("0 */5 * * * *", func() {
-		log.Println("Starting scheduled generator workflow...")
+		log.Println("[CRON] Attempting to start scheduled generator workflow...")
+		cronMutex.Lock()
+		defer cronMutex.Unlock()
+		log.Println("[CRON] Running scheduled generator workflow...")
 		generateImagesWorkflow(ctx, repo, service, cfg)
+		log.Println("[CRON] Finished scheduled generator workflow.")
 	})
 	if err != nil {
 		log.Printf("Error scheduling generator workflow: %v", err)
@@ -140,8 +147,12 @@ func startCronWorkflows(ctx context.Context, repo repository.ImageRepository, se
 
 	// Add processor workflow to run every 10 minutes
 	_, err = c.AddFunc("0 */10 * * * *", func() {
-		log.Println("Starting scheduled processor workflow...")
+		log.Println("[CRON] Attempting to start scheduled processor workflow...")
+		cronMutex.Lock()
+		defer cronMutex.Unlock()
+		log.Println("[CRON] Running scheduled processor workflow...")
 		processGeneratedImagesWorkflow(ctx, repo, service, cfg)
+		log.Println("[CRON] Finished scheduled processor workflow.")
 	})
 	if err != nil {
 		log.Printf("Error scheduling processor workflow: %v", err)
@@ -277,9 +288,22 @@ func processGeneratedImagesWorkflow(ctx context.Context, repo repository.ImageRe
 				for checkCount := 1; checkCount <= 3; checkCount++ {
 					log.Printf("Status check %d/3 for image ID %d with UUID: %s", checkCount, img.ID, img.UUID)
 
-					// Check generation status
 					resp, err := service.CheckGenerationStatus(ctx, img.UUID)
 					if err != nil {
+						// Check for 404 status in error body
+						if strings.Contains(err.Error(), "\"status\":404") {
+							log.Printf("API returned 404 for image ID %d, resetting UUID and status", img.ID)
+							if err := repo.UpdateUUID(ctx, img.ID, ""); err != nil {
+								log.Printf("Error resetting UUID for image ID %d: %v", img.ID, err)
+								continue
+							}
+							if err := repo.UpdateStatus(ctx, img.ID, "ReadyToGenerate"); err != nil {
+								log.Printf("Error updating status for image ID %d: %v", img.ID, err)
+								continue
+							}
+							log.Printf("Image ID %d reset to ReadyToGenerate due to 404 status", img.ID)
+							return // Exit the loop after handling 404
+						}
 						log.Printf("Error getting status for image ID %d (check %d/3): %v", img.ID, checkCount, err)
 						continue
 					}

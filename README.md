@@ -107,9 +107,13 @@ go run cmd/example/main.go -generator -verbose
 #### Scheduled Workflow (`-cron`)
 - Runs the generator workflow every 5 minutes
 - Runs the processor workflow every 10 minutes
+- Ensures that generator and processor jobs do not run simultaneously (mutex-based synchronization)
 - Provides automated, periodic execution of both workflows
 - Maintains separate schedules for generation and processing
 - Logs the start and completion of each scheduled run
+
+**Note:**
+> The cron workflow uses a mutex to guarantee that only one of the scheduled jobs (generator or processor) runs at a time. If a job is still running when the next is scheduled, the new job will wait until the previous one finishes. This prevents any overlap or concurrency issues between the generator and processor workflows when scheduled by cron.
 
 ## Starting Image Generation
 
