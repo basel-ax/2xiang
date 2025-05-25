@@ -132,7 +132,7 @@ func startCronWorkflows(ctx context.Context, repo repository.ImageRepository, se
 	var cronMutex sync.Mutex
 
 	// Add generator workflow to run every 5 minutes
-	_, err := c.AddFunc("0 */5 * * * *", func() {
+	_, err := c.AddFunc("0 */3 * * * *", func() {
 		log.Println("[CRON] Attempting to start scheduled generator workflow...")
 		cronMutex.Lock()
 		defer cronMutex.Unlock()
@@ -146,7 +146,7 @@ func startCronWorkflows(ctx context.Context, repo repository.ImageRepository, se
 	}
 
 	// Add processor workflow to run every 10 minutes
-	_, err = c.AddFunc("0 */10 * * * *", func() {
+	_, err = c.AddFunc("0 */7 * * * *", func() {
 		log.Println("[CRON] Attempting to start scheduled processor workflow...")
 		cronMutex.Lock()
 		defer cronMutex.Unlock()
@@ -179,20 +179,23 @@ func generateImagesWorkflow(ctx context.Context, repo repository.ImageRepository
 			log.Println("Image generation workflow stopped")
 			return
 		case <-ticker.C:
-			// Get images ready for generation
-			img, err := repo.GetReadyToGenerate(ctx)
+			// Get all images ready for generation
+			images, err := repo.GetAllReadyToGenerate(ctx)
 			if err != nil {
 				log.Printf("Error getting ready images: %v", err)
 				continue
 			}
 
-			if img != nil {
+			if len(images) == 0 {
+				continue
+			}
+
+			for _, img := range images {
 				// Truncate prompt if it exceeds the maximum length
 				originalPrompt := img.Prompt
 				img.Prompt = truncatePrompt(img.Prompt, maxPromptLength)
 				if len(originalPrompt) != len(img.Prompt) {
-					log.Printf("Prompt for image ID %d was truncated from %d to %d characters",
-						img.ID, len(originalPrompt), len(img.Prompt))
+					log.Printf("Prompt for image ID %d was truncated from %d to %d characters", img.ID, len(originalPrompt), len(img.Prompt))
 				}
 
 				log.Printf("Processing image ID %d with prompt: %s", img.ID, img.Prompt)
@@ -274,14 +277,18 @@ func processGeneratedImagesWorkflow(ctx context.Context, repo repository.ImageRe
 			log.Println("Image processing workflow stopped")
 			return
 		case <-ticker.C:
-			// Get an image ready for status check
-			img, err := repo.GetReadyToCheck(ctx)
+			// Get all images ready for status check
+			images, err := repo.GetAllReadyToCheck(ctx)
 			if err != nil {
-				log.Printf("Error getting image ready for check: %v", err)
+				log.Printf("Error getting images ready for check: %v", err)
 				continue
 			}
 
-			if img != nil {
+			if len(images) == 0 {
+				continue
+			}
+
+			for _, img := range images {
 				log.Printf("Starting status checks for image ID %d with UUID: %s", img.ID, img.UUID)
 
 				// Check status three times
@@ -302,7 +309,7 @@ func processGeneratedImagesWorkflow(ctx context.Context, repo repository.ImageRe
 								continue
 							}
 							log.Printf("Image ID %d reset to ReadyToGenerate due to 404 status", img.ID)
-							return // Exit the loop after handling 404
+							break // Move to next image after handling 404
 						}
 						log.Printf("Error getting status for image ID %d (check %d/3): %v", img.ID, checkCount, err)
 						continue
@@ -324,7 +331,7 @@ func processGeneratedImagesWorkflow(ctx context.Context, repo repository.ImageRe
 								continue
 							}
 							log.Printf("Successfully saved and marked as ready to publish image ID %d", img.ID)
-							return // Exit the loop after successful completion
+							break // Move to next image after successful completion
 						}
 
 					case "FAILED":
@@ -332,7 +339,7 @@ func processGeneratedImagesWorkflow(ctx context.Context, repo repository.ImageRe
 						if err := repo.UpdateStatus(ctx, img.ID, "Failed"); err != nil {
 							log.Printf("Error updating status for image ID %d: %v", img.ID, err)
 						}
-						return // Exit the loop after failure
+						break // Move to next image after failure
 
 					default:
 						log.Printf("Image ID %d generation still in progress (check %d/3)", img.ID, checkCount)

@@ -93,6 +93,7 @@ go run cmd/example/main.go -generator -verbose
 
 #### Image Generation Workflow (`-generator`)
 - Monitors for new image requests with status 'ReadyToGenerate'
+- Selects all images with the 'ReadyToGenerate' status and processes them in batch, one by one
 - Automatically truncates prompts longer than 999 characters while preserving UTF-8 characters
 - Sends requests to the Fusion Brain API
 - Updates image status to 'Generate' and saves UUID
@@ -100,6 +101,7 @@ go run cmd/example/main.go -generator -verbose
 
 #### Image Processing Workflow (`-processor`)
 - Monitors images with status 'Generate'
+- Selects all images with the 'Generate' status and processes them in batch, one by one
 - Checks generation status with the API
 - Updates image status to 'ReadyToPublish' when complete
 - Handles failed generations and errors

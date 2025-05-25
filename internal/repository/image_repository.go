@@ -15,6 +15,8 @@ type ImageRepository interface {
 	UpdateStatus(ctx context.Context, id int, status string) error
 	UpdateUUID(ctx context.Context, id int, uuid string) error
 	UpdateBase64(ctx context.Context, id int, base64 string) error
+	GetAllReadyToGenerate(ctx context.Context) ([]*domain.Image, error)
+	GetAllReadyToCheck(ctx context.Context) ([]*domain.Image, error)
 }
 
 // PostgresImageRepository implements ImageRepository for PostgreSQL
@@ -114,4 +116,70 @@ func (r *PostgresImageRepository) UpdateBase64(ctx context.Context, id int, base
 
 	_, err := r.db.ExecContext(ctx, query, base64, time.Now(), id)
 	return err
+}
+
+// GetAllReadyToGenerate retrieves all images ready for generation
+func (r *PostgresImageRepository) GetAllReadyToGenerate(ctx context.Context) ([]*domain.Image, error) {
+	query := `
+		SELECT id, prompt
+		FROM images
+		WHERE status = 'ReadyToGenerate'
+		AND prompt IS NOT NULL
+		AND prompt != ''
+		ORDER BY created_at ASC
+		FOR UPDATE SKIP LOCKED
+	`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var images []*domain.Image
+	for rows.Next() {
+		var img domain.Image
+		if err := rows.Scan(&img.ID, &img.Prompt); err != nil {
+			return nil, err
+		}
+		images = append(images, &img)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return images, nil
+}
+
+// GetAllReadyToCheck retrieves all images ready for status check
+func (r *PostgresImageRepository) GetAllReadyToCheck(ctx context.Context) ([]*domain.Image, error) {
+	query := `
+		SELECT id, uuid
+		FROM images
+		WHERE status = 'Generate'
+		AND uuid IS NOT NULL
+		AND uuid != ''
+		ORDER BY created_at ASC
+		FOR UPDATE SKIP LOCKED
+	`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var images []*domain.Image
+	for rows.Next() {
+		var img domain.Image
+		if err := rows.Scan(&img.ID, &img.UUID); err != nil {
+			return nil, err
+		}
+		images = append(images, &img)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return images, nil
 }
